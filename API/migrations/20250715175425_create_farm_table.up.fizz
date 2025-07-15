@@ -1,0 +1,18 @@
+create_table("farms") {
+  t.Column("title", "string", {size: 255})
+  t.Column("crop", "string", {size: 100})
+  t.Column("location", "string", {size: 255})
+  t.Column("image_url", "text", {})
+  t.Column("description", "text", {})
+  t.Column("price_per_unit", "decimal", {precision: 12, scale: 2})
+  t.Column("expected_roi", "decimal", {precision: 5, scale: 2})
+  t.Column("expected_yield", "decimal", {precision: 12, scale: 2})
+  t.Column("expected_revenue", "decimal", {precision: 15, scale: 2})
+  t.Column("production_duration", "integer", {})
+  t.Column("units_available", "integer", {default: 0})
+  t.Column("units_sold", "integer", {default: 0})
+  t.Column("start_date", "timestamp", {})
+  t.Column("harvest_date", "timestamp", {})
+  t.Column("is_active", "bool", {default: true})
+  t.Timestamps()
+}

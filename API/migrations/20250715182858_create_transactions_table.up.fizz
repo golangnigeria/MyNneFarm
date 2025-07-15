@@ -1,0 +1,26 @@
+create_table("transactions") {
+  t.Column("user_id", "uuid", {null: false})
+  t.Column("farm_id", "int", {null: true})
+  t.Column("vendor_id", "int", {null: true})
+  t.Column("type", "string", {null: false}) // e.g. "investment", "cashout", "redemption"
+  t.Column("reference", "string", {null: false, unique: true})
+  t.Column("amount", "float", {null: false})
+  t.Column("status", "string", {null: false}) // "pending", "completed"
+  t.Column("meta", "jsonb", {})
+  t.Timestamps()
+}
+
+add_foreign_key("transactions", "user_id", {
+  references: "users(id)",
+  on_delete: "CASCADE"
+})
+
+add_foreign_key("transactions", "farm_id", {
+  references: "farms(id)",
+  on_delete: "SET NULL"
+})
+
+add_foreign_key("transactions", "vendor_id", {
+  references: "vendors(id)",
+  on_delete: "SET NULL"
+})

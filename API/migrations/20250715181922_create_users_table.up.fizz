@@ -1,0 +1,7 @@
+create_table("users") {
+  t.Column("email", "string", {null: false, unique: true})
+  t.Column("full_name", "string", {})
+  t.Column("phone", "string", {})
+  t.Column("wallet_balance", "decimal", {precision: 12, scale: 2, default: 0.0})
+  t.Timestamps()
+}
