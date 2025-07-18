@@ -6,7 +6,7 @@ function MainLayout() {
   return (
     <div>
         <Navbar />
-        <div className="container mx-auto px-4 py-6">
+        <div className="mx-auto">
           {/* Outlet for nested routes */}
           <Outlet />
         </div>

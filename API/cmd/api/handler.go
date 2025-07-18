@@ -28,6 +28,9 @@ func (app *application) GetFarms(w http.ResponseWriter, r *http.Request) {
 
 // InsertFarms handles the HTTP request to insert a new farm.
 func (app *application) InsertFarms(w http.ResponseWriter, r *http.Request) {
+
+	
+
 	var farm models.FarmModel
 
 	// Read the incoming JSON into the farm model

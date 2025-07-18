@@ -6,6 +6,8 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
+
+import { UploadToCloudinary } from '../../utilis/UpLoadToCloudinary';
 import StepOne from '../../components/farms/StepOne';
 import StepTwo from '../../components/farms/StepTwo';
 import StepThree from '../../components/farms/StepThree'; // Assuming StepThree is defined similarly
@@ -24,21 +26,25 @@ function PostFarm() {
   } = useForm();
 
   const mutation = useMutation({
-    mutationFn: async (data) => {
-      const payload = {
-        ...data,
-        price_per_unit: Number(data.price_per_unit),
-        expected_roi: Number(data.expected_roi),
-        expected_yield: data.expected_yield ? Number(data.expected_yield) : undefined,
-        expected_revenue: data.expected_revenue ? Number(data.expected_revenue) : undefined,
-        production_duration: Number(data.production_duration),
-        units_available: Number(data.units_available),
-        start_date: data.start_date,
-      };
+  mutationFn: async (formData) => {
+    const file = formData.image[0];
+    const imageUrl = await UploadToCloudinary(file);
 
-      const response = await axios.post(`${API_URL}/farms`, payload);
-      return response.data.farm;
-    },
+    const payload = {
+      ...formData,
+      image_url: imageUrl,
+      price_per_unit: Number(formData.price_per_unit),
+      expected_roi: Number(formData.expected_roi),
+      expected_yield: formData.expected_yield ? Number(formData.expected_yield) : undefined,
+      expected_revenue: formData.expected_revenue ? Number(formData.expected_revenue) : undefined,
+      production_duration: Number(formData.production_duration),
+      units_available: Number(formData.units_available),
+      start_date: formData.start_date,
+    };
+
+    const response = await axios.post(`${API_URL}/farms`, payload);
+    return response.data.farm;
+  },
     onSuccess: () => {
       toast.success('🎉 Farm posted successfully!');
       reset();
@@ -55,7 +61,8 @@ function PostFarm() {
   };
 
   return (
-    <section className="bg-[#F3E7D5] min-h-screen px-4 py-10 flex items-center justify-center">
+    <div className='bg-[#F3E7D5] min-h-screen px-2 py-10 flex items-center justify-center'>
+        <section className="bg-[#F3E7D5] min-h-screen px-4 py-10 flex items-center justify-center">
       <div className="backdrop-blur-md bg-white/20 border border-white/30 shadow-xl rounded-3xl p-8 max-w-3xl w-full">
         <h1 className="text-3xl font-bold text-[#1F3B17] mb-8 text-center">Post a New Farm</h1>
 
@@ -97,6 +104,7 @@ function PostFarm() {
        
       </div>
     </section>
+    </div>
   );
 }
 

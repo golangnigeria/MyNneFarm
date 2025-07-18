@@ -13,7 +13,8 @@ import About from './pages/About';
 import Home from './pages/Home';
 import Farms from './pages/farms/Farms';
 import PostFarm from './pages/farms/PostFarm';
-
+import SignIn from './pages/Authentication/SignIn'; // ✅ Fix: Import SignIn component
+import SignUp from './pages/Authentication/SignUp';
 
 
 
@@ -38,6 +39,14 @@ const router = createBrowserRouter([
       {
         path: 'farms/post',
         element: <PostFarm />,
+      },
+      {
+        path: 'auth/signin',
+        element: <SignIn />,
+      },
+      {
+        path: 'auth/signup',
+        element: <SignUp />,
       },
     ],
   },
