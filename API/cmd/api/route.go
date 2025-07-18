@@ -13,6 +13,7 @@ func (app *application) routes() http.Handler {
 	router.MethodNotAllowed = http.HandlerFunc(app.methodNotAllowedResponse)
 
 	router.HandlerFunc(http.MethodGet, "/api/v1/farms", app.GetFarms)
+	router.HandlerFunc(http.MethodPost, "/api/v1/farms", app.InsertFarms)
 
 	return app.enableCORS(router)
 }

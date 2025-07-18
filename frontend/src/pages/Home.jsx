@@ -15,9 +15,15 @@ function Home() {
           </p>
           <Link
             to="/farms"
-            className="bg-[#5E7E3F] hover:bg-[#2F5024] text-white font-semibold py-3 px-6 rounded-lg transition-all"
+            className="bg-[#5E7E3F] mx-2 hover:bg-[#2F5024] text-white font-semibold py-3 px-6 rounded-lg transition-all"
           >
             Explore Farms
+          </Link>
+          <Link
+            to="/farms/post"
+            className="bg-[#5E7E3F] mx-2 hover:bg-[#2F5024] text-white font-semibold py-3 px-6 rounded-lg transition-all"
+          >
+            Post Farms
           </Link>
         </div>
 

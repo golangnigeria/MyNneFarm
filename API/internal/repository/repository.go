@@ -9,4 +9,5 @@ import (
 type DatabaseRepository interface {
 	Connection() *sql.DB
 	GetFarms() ([]models.FarmModel, error)
+	InsertFarm(farm models.FarmModel) (int64, error)
 }

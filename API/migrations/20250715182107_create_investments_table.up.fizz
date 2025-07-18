@@ -1,5 +1,5 @@
 create_table("investments") {
-  t.Column("user_id", "uuid", {null: false})
+  t.Column("user_id", "integer", {null: false})
   t.Column("farm_id", "integer", {null: false})
   t.Column("units", "integer", {null: false})
   t.Column("amount_paid", "decimal", {precision: 12, scale: 2})

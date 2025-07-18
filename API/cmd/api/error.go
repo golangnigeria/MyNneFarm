@@ -39,3 +39,7 @@ func (app *application) badRequestResponse(w http.ResponseWriter, r *http.Reques
 	message := "the request could not be processed due to client error"
 	app.errorResponse(w, r, http.StatusBadRequest, message)
 }
+
+func (app *application) failedValidationResponse(w http.ResponseWriter, r *http.Request, errors map[string]string) {
+	app.errorResponse(w, r, http.StatusUnprocessableEntity, errors)
+}
