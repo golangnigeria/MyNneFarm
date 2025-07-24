@@ -1,8 +1,13 @@
-create_table("users") {
-  t.Column("id", "integer", {"primary": true})
-  t.Column("email", "string", {null: false, unique: true})
-  t.Column("full_name", "string", {})
-  t.Column("phone", "string", {})
-  t.Column("wallet_balance", "decimal", {precision: 12, scale: 2, default: 0.0})
-  t.Timestamps()
-}
+create_table("users", func(t) {
+  t.Column("id", "uuid", {primary: true, default_raw: "gen_random_uuid()"})
+  t.Column("full_name", "text", {null: false})
+  t.Column("email", "text", {null: false, unique: true})
+  t.Column("phone", "text", {null: false, unique: true})
+  t.Column("roles", "text[]", {null: false, default_raw: "ARRAY['farmer']"})
+  t.Column("wallet_balance", "integer", {null: false, default: "0"})
+  t.Column("activated", "boolean", {null: false, default: "false"})
+  t.Column("version", "integer", {null: false, default: "1"})
+  t.Column("referred_by", "text", {})
+  t.Column("created_at", "timestamp with time zone", {default_raw: "CURRENT_TIMESTAMP"})
+  t.Column("updated_at", "timestamp with time zone", {default_raw: "CURRENT_TIMESTAMP"})
+})

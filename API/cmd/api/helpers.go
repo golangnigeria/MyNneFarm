@@ -57,3 +57,21 @@ func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any
 	}
 	return nil
 }
+
+
+func (app *application) background(fn func()) {
+	app.wg.Add(1)
+
+	go func() {
+
+		defer app.wg.Done()
+		 // Recover from any panic that occurs in the background function
+		defer func() {
+			if r := recover(); r != nil {
+				app.logger.Println("Background task panicked:", r)
+			}
+		}()
+
+		fn()
+	}()
+}

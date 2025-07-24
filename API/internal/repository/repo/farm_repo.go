@@ -8,7 +8,7 @@ import (
 	models "github.com/golangnigeria/MyNneFarm/internal/model"
 )
 
-const dbTimeout = 5 * time.Second
+
 
 // GetFarms retrieves all farms from the database.
 func (m *NeonDBRepo) GetFarms() ([]models.FarmModel, error) {

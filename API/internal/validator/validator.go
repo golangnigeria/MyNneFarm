@@ -62,3 +62,16 @@ func Unique(values []string) bool {
 	}
 	return len(values) == len(uniqueValues)
 }
+
+
+// validate passwordplaintext checks if the password is not empty and meets length requirements.
+func ValidatePasswordPlaintext(v *Validator, password string) {
+	v.Check(password != "", "password", "must be provided")
+	v.Check(len(password) >= 8, "password", "must be at least 8 bytes long")
+	v.Check(len(password) <= 72, "password", "must not be more than 72 bytes long")
+}
+
+// validate hashed password checks if the hashed password is not empty.
+func ValidatePasswordHash(v *Validator, hash []byte) {
+	v.Check(len(hash) > 0, "password", "must be provided")
+}
