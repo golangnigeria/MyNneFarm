@@ -1,16 +1,12 @@
 package main
 
 import (
-	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/golangnigeria/MyNneFarm/internal/mailer"
@@ -40,6 +36,12 @@ type config struct {
 		password string
 		sender   string
 	}
+	jwt struct {
+		JWTIssuer    string
+		JWTAudience  string
+		JWTSecret    string
+		CookieDomain string
+	}
 }
 
 type application struct {
@@ -48,6 +50,7 @@ type application struct {
 	DB     repository.DatabaseRepository
 	mailer mailer.Mailer
 	wg     sync.WaitGroup
+	auth   Auth
 }
 
 func main() {
@@ -77,6 +80,12 @@ func main() {
 	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 2, "Requests per second for rate limiting")
 	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Burst size for rate limiting")
 
+	// JWT configuration
+	flag.StringVar(&cfg.jwt.JWTSecret, "jwt-secret", "verysecret", "Signing secret for our help text")
+	flag.StringVar(&cfg.jwt.JWTIssuer, "jwt-Issuer", "example.com", "Signing Issuer for our help text")
+	flag.StringVar(&cfg.jwt.JWTAudience, "jwt-Audience", "example.com", "Signing Audience for our help text")
+	flag.StringVar(&cfg.jwt.CookieDomain, "Cookie-Domain", "localhost", "Domain for development environtment")
+
 	// Parse command line flags
 	flag.Parse()
 
@@ -96,6 +105,19 @@ func main() {
 	app.DB = &repo.NeonDBRepo{DB: conn}
 	defer app.DB.Connection().Close()
 
+
+	// JWT populating the default setting for the jwt.
+	app.auth = Auth{
+		Issuer: cfg.jwt.JWTIssuer,
+		Audience: cfg.jwt.JWTAudience,
+		Secret: cfg.jwt.JWTSecret,
+		TokenExpiry: time.Minute * 15,
+		RefreshExpiry: time.Hour * 24,
+		CookiePath: "/",
+		CookieName: "__Host-refresh_token",
+		CookieDomain: cfg.jwt.CookieDomain,
+	}
+
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.port),
 		Handler:      app.routes(),
@@ -109,58 +131,4 @@ func main() {
 	if err != nil {
 		app.logger.Fatal(err)
 	}
-}
-
-func (app *application) serve() error {
-	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", app.config.port),
-		Handler:      app.routes(),
-		IdleTimeout:  time.Minute,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
-	}
-	shutdownError := make(chan error)
-	go func() {
-		quit := make(chan os.Signal, 1)
-		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-		s := <-quit
-		app.logger.Printf("caught signal", map[string]string{
-			"signal": s.String(),
-		})
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		// Call Shutdown() on the server like before, but now we only send on the
-		// shutdownError channel if it returns an error
-		err := srv.Shutdown(ctx)
-		if err != nil {
-			shutdownError <- err
-		}
-		// Log a message to say that we're waiting for any background goroutines to
-		// complete their tasks.
-		app.logger.Printf("completing background tasks", map[string]string{
-			"addr": srv.Addr,
-		})
-		// Call Wait() to block until our WaitGroup counter is zero --- essentially
-		// blocking until the background goroutines have finished. Then we return nil on
-		// the shutdownError channel, to indicate that the shutdown completed without
-		// any issues.
-		app.wg.Wait()
-		shutdownError <- nil
-	}()
-	app.logger.Printf("starting server", map[string]string{
-		"addr": srv.Addr,
-		"env":  app.config.env,
-	})
-	err := srv.ListenAndServe()
-	if !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
-	err = <-shutdownError
-	if err != nil {
-		return err
-	}
-	app.logger.Printf("stopped server", map[string]string{
-		"addr": srv.Addr,
-	})
-	return nil
 }

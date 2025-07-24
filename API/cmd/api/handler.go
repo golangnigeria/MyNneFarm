@@ -136,3 +136,32 @@ func (app *application) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
+
+func (app *application) Authenticate(w http.ResponseWriter, r *http.Request){
+	// read the request payload
+
+	// validate user against the database
+
+	// check password
+
+	// create a jwt user
+	u := jwtUser{
+		ID: 1,
+		FullName: "Admin User",
+	}
+
+	// genertate tokens
+	tokens, err := app.auth.GenerateTokenPairs(&u)
+	if err != nil{
+		app.errorResponse(w, r, http.StatusBadRequest, err)
+		return
+	}
+
+	fmt.Println(tokens.Token)
+
+	refreshCookie := app.auth.GetRefreshCookie(tokens.RefreshToken)
+	http.SetCookie(w, refreshCookie)
+
+	w.Write([]byte(tokens.Token))
+}
