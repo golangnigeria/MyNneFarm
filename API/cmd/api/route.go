@@ -15,7 +15,7 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/api/v1/farms", app.GetFarms)
 	router.HandlerFunc(http.MethodPost, "/api/v1/farms", app.InsertFarms)
 
-	router.HandlerFunc(http.MethodGet, "/app/v1/authenticate", app.Authenticate)
+	router.HandlerFunc(http.MethodPost, "/app/v1/authenticate", app.Authenticate)
 
 	router.HandlerFunc(http.MethodPost, "/api/v1/users", app.CreateUser)
 

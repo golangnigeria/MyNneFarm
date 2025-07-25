@@ -1,13 +1,10 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 
 	models "github.com/golangnigeria/MyNneFarm/internal/model"
-	"github.com/golangnigeria/MyNneFarm/internal/repository/repo"
-	"github.com/golangnigeria/MyNneFarm/internal/validator"
 )
 
 // GetFarms handles the HTTP request to retrieve all farms.
@@ -74,14 +71,13 @@ func (app *application) CreateUser(w http.ResponseWriter, r *http.Request) {
 		FullName string `json:"full_name" db:"full_name"`
 		Email    string `json:"email" db:"email"`
 		Phone    string `json:"phone" db:"phone"`
-		Password string `json:"password" db:"password"`
+		Password string `json:"-" db:"password"`
 	}
 
 	// Read the incoming JSON into the user model
 	err := app.readJSON(w, r, &input)
 	if err != nil {
-		app.logger.Println("Error reading JSON request:", err)
-		http.Error(w, "Bad Request", http.StatusBadRequest)
+		app.errorResponse(w, r, http.StatusBadRequest, "unable to read the create user request payload")
 		return
 	}
 
@@ -93,42 +89,17 @@ func (app *application) CreateUser(w http.ResponseWriter, r *http.Request) {
 		Roles:     []string{"farmer"}, // Default role
 	}
 
-	// Set the password using the Password model
-	if err := user.Password.Set(input.Password); err != nil {
+	 
+	// Save to DB
+	err = app.DB.CreateUser(user)
+	if err != nil{
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
-	v := validator.New()
-
-	if models.ValidateUser(v, user); !v.Valid() {
-		app.failedValidationResponse(w, r, v.Errors)
-		return
-	}
-
-	// Save to DB
-	err = app.DB.CreateUser(user)
-	if err != nil {
-		switch {
-		case errors.Is(err, repo.ErrDuplicateEmail):
-			v.AddError("email", "a user with this email address already exists")
-			app.failedValidationResponse(w, r, v.Errors)
-		default:
-			app.serverErrorResponse(w, r, err)
-		}
-		return
-
-	}
-
-
 	// send a welcome email
-	 app.background(func() {
-		if err := app.mailer.Send(user.Email, "user_welcome.html", user); err != nil {
-			app.logger.Println("Error sending welcome email:", err)
-		}
-	})
-	
 
+	// Writing out the json
 	err = app.writeJSON(w, http.StatusAccepted, envelope{"user": user}, nil)
 	if err != nil {
 		app.logger.Println("Error writing JSON response:", err)
@@ -137,23 +108,41 @@ func (app *application) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-
-func (app *application) Authenticate(w http.ResponseWriter, r *http.Request){
+func (app *application) Authenticate(w http.ResponseWriter, r *http.Request) {
 	// read the request payload
+	var requestPayload struct {
+		Email    string `json:"email" db:"email"`
+		Password string `json:"password" db:"password"`
+	}
+
+	err := app.readJSON(w, r, &requestPayload)
+	if err != nil {
+		app.errorResponse(w, r, http.StatusBadRequest, "unable to read the request payload from the authentication field")
+		return
+	}
 
 	// validate user against the database
+	user, err := app.DB.GetUserByEmail(requestPayload.Email)
+	if err != nil {
+		app.errorResponse(w, r, http.StatusBadRequest, "invalid Credentials - Email")
+		return
+	}
 
 	// check password
+	valid, err := user.PasswordMatches(requestPayload.Password)
+	if err != nil || !valid{
+		app.errorResponse(w, r, http.StatusBadRequest, "invalid Credentials - Password")
+	}
 
 	// create a jwt user
 	u := jwtUser{
-		ID: 1,
-		FullName: "Admin User",
+		ID:       user.ID,
+		FullName: user.FullName,
 	}
 
 	// genertate tokens
 	tokens, err := app.auth.GenerateTokenPairs(&u)
-	if err != nil{
+	if err != nil {
 		app.errorResponse(w, r, http.StatusBadRequest, err)
 		return
 	}
@@ -163,5 +152,5 @@ func (app *application) Authenticate(w http.ResponseWriter, r *http.Request){
 	refreshCookie := app.auth.GetRefreshCookie(tokens.RefreshToken)
 	http.SetCookie(w, refreshCookie)
 
-	w.Write([]byte(tokens.Token))
+	app.writeJSON(w, http.StatusAccepted, envelope{"user": tokens}, nil)
 }

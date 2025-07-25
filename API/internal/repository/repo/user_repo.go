@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	models "github.com/golangnigeria/MyNneFarm/internal/model"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -18,9 +20,15 @@ func (m *NeonDBRepo) CreateUser(user *models.User) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
+	// Hash password before inserting
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
 	query := `
 		INSERT INTO users (
-			 full_name, email, phone, password_hash, roles,
+			full_name, email, phone, password, roles,
 			wallet_balance, activated, version, referred_by,
 			created_at, updated_at
 		) VALUES (
@@ -29,7 +37,6 @@ func (m *NeonDBRepo) CreateUser(user *models.User) error {
 		) RETURNING id, version, created_at
 	`
 
-	// Ensure timestamps are set
 	now := time.Now().UTC()
 	if user.CreatedAt.IsZero() {
 		user.CreatedAt = now
@@ -38,11 +45,11 @@ func (m *NeonDBRepo) CreateUser(user *models.User) error {
 		user.UpdatedAt = now
 	}
 
-	err := m.DB.QueryRowContext(ctx, query,
+	err = m.DB.QueryRowContext(ctx, query,
 		user.FullName,
 		user.Email,
 		user.Phone,
-		user.Password.Hash,
+		hashedPassword, // store hash, not plain password
 		user.Roles,
 		user.WalletBalance,
 		user.Activated,
@@ -53,12 +60,10 @@ func (m *NeonDBRepo) CreateUser(user *models.User) error {
 	).Scan(&user.ID, &user.Version, &user.CreatedAt)
 
 	if err != nil {
-		switch {
-		case err.Error() == `pq: duplicate key value violates unique constraint "users_email_key"`:
+		if strings.Contains(err.Error(), `duplicate key value violates unique constraint "users_email_key"`) {
 			return ErrDuplicateEmail
-		default:
-			return err
 		}
+		return err
 	}
 
 	return nil
@@ -68,32 +73,40 @@ func (m *NeonDBRepo) GetUserByEmail(email string) (*models.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	query := `SELECT id, created_at, email, password, roles,
-		wallet_balance, activated
+	query := `
+		SELECT id, full_name, email, phone, password, roles,
+		       wallet_balance, activated, version, referred_by,
+		       created_at, updated_at
 		FROM users
-		WHERE email = $1`
+		WHERE email = $1
+	`
 
 	var user models.User
 
 	err := m.DB.QueryRowContext(ctx, query, email).Scan(
 		&user.ID,
-		&user.CreatedAt,
+		&user.FullName,
 		&user.Email,
-		&user.Password,
+		&user.Phone,
+		&user.Password, // this is the stored hash
 		&user.Roles,
 		&user.WalletBalance,
 		&user.Activated,
+		&user.Version,
+		&user.ReferredBy,
+		&user.CreatedAt,
+		&user.UpdatedAt,
 	)
 	if err != nil {
-		switch {
-		case err == sql.ErrNoRows:
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrUserNotFound
-		default:
-			return nil, err
 		}
+		return nil, err
 	}
+
 	return &user, nil
 }
+
 
 // UpdateUser updates an existing user in the database.
 func (m *NeonDBRepo) UpdateUser(user *models.User) error {
@@ -106,12 +119,10 @@ func (m *NeonDBRepo) UpdateUser(user *models.User) error {
 			WHERE id = $5 AND version = $6
 			RETURNING version`
 
-	 
-
 	err := m.DB.QueryRowContext(ctx, query,
 		user.FullName,
 		user.Email,
-		user.Password.Hash,
+		user.Password,
 		user.Activated,
 		user.ID,
 		user.Version,
