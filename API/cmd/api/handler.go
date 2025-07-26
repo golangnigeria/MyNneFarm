@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 
 	models "github.com/golangnigeria/MyNneFarm/internal/model"
@@ -89,10 +90,16 @@ func (app *application) CreateUser(w http.ResponseWriter, r *http.Request) {
 		Roles:     []string{"farmer"}, // Default role
 	}
 
-	 
+	err = user.Password.Set(input.Password)
+	if err != nil{
+		log.Println("Password Set error:", err)
+		app.errorResponse(w, r, http.StatusUnauthorized, "invalid email or password")
+		return
+	}
+
 	// Save to DB
 	err = app.DB.CreateUser(user)
-	if err != nil{
+	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
@@ -109,48 +116,58 @@ func (app *application) CreateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) Authenticate(w http.ResponseWriter, r *http.Request) {
-	// read the request payload
 	var requestPayload struct {
-		Email    string `json:"email" db:"email"`
-		Password string `json:"password" db:"password"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	err := app.readJSON(w, r, &requestPayload)
 	if err != nil {
-		app.errorResponse(w, r, http.StatusBadRequest, "unable to read the request payload from the authentication field")
+		app.errorResponse(w, r, http.StatusBadRequest, "invalid request payload")
 		return
 	}
 
-	// validate user against the database
+	log.Printf("Incoming login: %s / %s", requestPayload.Email, requestPayload.Password)
+
 	user, err := app.DB.GetUserByEmail(requestPayload.Email)
 	if err != nil {
-		app.errorResponse(w, r, http.StatusBadRequest, "invalid Credentials - Email")
+		log.Println("DB error:", err)
+		app.errorResponse(w, r, http.StatusUnauthorized, "invalid email or password")
 		return
 	}
 
-	// check password
-	valid, err := user.PasswordMatches(requestPayload.Password)
-	if err != nil || !valid{
-		app.errorResponse(w, r, http.StatusBadRequest, "invalid Credentials - Password")
+	err = user.Password.Set(requestPayload.Password)
+	if err != nil{
+		log.Println("Password Set error:", err)
+		app.errorResponse(w, r, http.StatusUnauthorized, "invalid email or password")
+		return
 	}
 
-	// create a jwt user
+	log.Println("Fetched hashed password:", user.Password)
+
+	valid, err := user.PasswordMatches(requestPayload.Password)
+	if err != nil {
+		log.Println("Password comparison error:", err)
+		app.errorResponse(w, r, http.StatusInternalServerError, "error checking password")
+		return
+	}
+	if !valid {
+		log.Println("Invalid password")
+		app.errorResponse(w, r, http.StatusUnauthorized, "invalid email or password")
+		return
+	}
+
 	u := jwtUser{
 		ID:       user.ID,
 		FullName: user.FullName,
 	}
 
-	// genertate tokens
 	tokens, err := app.auth.GenerateTokenPairs(&u)
 	if err != nil {
-		app.errorResponse(w, r, http.StatusBadRequest, err)
+		app.errorResponse(w, r, http.StatusInternalServerError, "token generation failed")
 		return
 	}
 
-	fmt.Println(tokens.Token)
-
-	refreshCookie := app.auth.GetRefreshCookie(tokens.RefreshToken)
-	http.SetCookie(w, refreshCookie)
-
+	http.SetCookie(w, app.auth.GetRefreshCookie(tokens.RefreshToken))
 	app.writeJSON(w, http.StatusAccepted, envelope{"user": tokens}, nil)
 }

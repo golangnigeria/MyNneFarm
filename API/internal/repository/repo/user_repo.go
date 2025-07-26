@@ -4,11 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	models "github.com/golangnigeria/MyNneFarm/internal/model"
-	"golang.org/x/crypto/bcrypt"
+	"github.com/lib/pq"
 )
 
 var (
@@ -20,10 +21,21 @@ func (m *NeonDBRepo) CreateUser(user *models.User) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	// Hash password before inserting
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
-	if err != nil {
-		return err
+	// Normalize inputs
+	user.Email = strings.ToLower(strings.TrimSpace(user.Email))
+	user.Phone = strings.TrimSpace(user.Phone)
+	user.FullName = strings.TrimSpace(user.FullName)
+
+	if len(user.Roles) == 0 {
+		user.Roles = []string{"farmer"} // default role
+	}
+
+	now := time.Now().UTC()
+	if user.CreatedAt.IsZero() {
+		user.CreatedAt = now
+	}
+	if user.UpdatedAt.IsZero() {
+		user.UpdatedAt = now
 	}
 
 	query := `
@@ -37,20 +49,12 @@ func (m *NeonDBRepo) CreateUser(user *models.User) error {
 		) RETURNING id, version, created_at
 	`
 
-	now := time.Now().UTC()
-	if user.CreatedAt.IsZero() {
-		user.CreatedAt = now
-	}
-	if user.UpdatedAt.IsZero() {
-		user.UpdatedAt = now
-	}
-
-	err = m.DB.QueryRowContext(ctx, query,
+	err := m.DB.QueryRowContext(ctx, query,
 		user.FullName,
 		user.Email,
 		user.Phone,
-		hashedPassword, // store hash, not plain password
-		user.Roles,
+		user.Password.Hash,
+		pq.Array(user.Roles),
 		user.WalletBalance,
 		user.Activated,
 		user.Version,
@@ -60,10 +64,11 @@ func (m *NeonDBRepo) CreateUser(user *models.User) error {
 	).Scan(&user.ID, &user.Version, &user.CreatedAt)
 
 	if err != nil {
-		if strings.Contains(err.Error(), `duplicate key value violates unique constraint "users_email_key"`) {
+		if strings.Contains(err.Error(), `users_email_key`) {
 			return ErrDuplicateEmail
 		}
-		return err
+
+		return fmt.Errorf("error inserting user: %w", err)
 	}
 
 	return nil
@@ -88,7 +93,7 @@ func (m *NeonDBRepo) GetUserByEmail(email string) (*models.User, error) {
 		&user.FullName,
 		&user.Email,
 		&user.Phone,
-		&user.Password, // this is the stored hash
+		&user.Password.Hash,
 		&user.Roles,
 		&user.WalletBalance,
 		&user.Activated,
@@ -101,12 +106,11 @@ func (m *NeonDBRepo) GetUserByEmail(email string) (*models.User, error) {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrUserNotFound
 		}
-		return nil, err
+		return nil, fmt.Errorf("querying user by email: %w", err)
 	}
 
 	return &user, nil
 }
-
 
 // UpdateUser updates an existing user in the database.
 func (m *NeonDBRepo) UpdateUser(user *models.User) error {
