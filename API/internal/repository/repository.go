@@ -12,5 +12,6 @@ type DatabaseRepository interface {
 	InsertFarm(farm models.FarmModel) (int64, error)
 	CreateUser(user *models.User) error
 	GetUserByEmail(email string) (*models.User, error)
+	GetUserByID(id int) (*models.User, error)
 	UpdateUser(user *models.User) error
 }

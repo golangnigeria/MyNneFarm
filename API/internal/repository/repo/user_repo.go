@@ -112,6 +112,45 @@ func (m *NeonDBRepo) GetUserByEmail(email string) (*models.User, error) {
 	return &user, nil
 }
 
+
+func (m *NeonDBRepo) GetUserByID(id int) (*models.User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	query := `
+		SELECT id, full_name, email, phone, password, roles,
+		       wallet_balance, activated, version, referred_by,
+		       created_at, updated_at
+		FROM users
+		WHERE id = $1
+	`
+
+	var user models.User
+
+	err := m.DB.QueryRowContext(ctx, query, id).Scan(
+		&user.ID,
+		&user.FullName,
+		&user.Email,
+		&user.Phone,
+		&user.Password.Hash,
+		&user.Roles,
+		&user.WalletBalance,
+		&user.Activated,
+		&user.Version,
+		&user.ReferredBy,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrUserNotFound
+		}
+		return nil, fmt.Errorf("querying user by email: %w", err)
+	}
+
+	return &user, nil
+}
+
 // UpdateUser updates an existing user in the database.
 func (m *NeonDBRepo) UpdateUser(user *models.User) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)

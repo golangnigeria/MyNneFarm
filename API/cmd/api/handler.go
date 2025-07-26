@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 
+	"github.com/golang-jwt/jwt/v4"
 	models "github.com/golangnigeria/MyNneFarm/internal/model"
 )
 
@@ -91,7 +93,7 @@ func (app *application) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = user.Password.Set(input.Password)
-	if err != nil{
+	if err != nil {
 		log.Println("Password Set error:", err)
 		app.errorResponse(w, r, http.StatusUnauthorized, "invalid email or password")
 		return
@@ -115,6 +117,7 @@ func (app *application) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Authenticate handles the HTTP request to validate the user credentials
 func (app *application) Authenticate(w http.ResponseWriter, r *http.Request) {
 	var requestPayload struct {
 		Email    string `json:"email"`
@@ -137,7 +140,7 @@ func (app *application) Authenticate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = user.Password.Set(requestPayload.Password)
-	if err != nil{
+	if err != nil {
 		log.Println("Password Set error:", err)
 		app.errorResponse(w, r, http.StatusUnauthorized, "invalid email or password")
 		return
@@ -170,4 +173,57 @@ func (app *application) Authenticate(w http.ResponseWriter, r *http.Request) {
 
 	http.SetCookie(w, app.auth.GetRefreshCookie(tokens.RefreshToken))
 	app.writeJSON(w, http.StatusAccepted, envelope{"user": tokens}, nil)
+}
+
+// Refresh handles the HTTP request to refresh a user
+func (app *application) refreshToken(w http.ResponseWriter, r *http.Request) {
+	for _, cookie := range r.Cookies() {
+		if cookie.Name == app.auth.CookieName {
+			claims := &Claims{}
+			refreshToken := cookie.Value
+
+			// Parse the token to get the claims
+			_, err := jwt.ParseWithClaims(refreshToken, claims, func(t *jwt.Token) (interface{}, error) {
+				return []byte(app.auth.Secret), nil
+			})
+			if err != nil {
+				app.errorResponse(w, r, http.StatusUnauthorized, "Unautherized")
+				return
+			}
+
+			// get the user ID from the claims
+			userID, err := strconv.Atoi(claims.Subject)
+			if err != nil {
+				app.errorResponse(w, r, http.StatusUnauthorized, "Unknown user")
+				return
+			}
+
+			user, err := app.DB.GetUserByID(userID)
+			if err != nil {
+				app.errorResponse(w, r, http.StatusUnauthorized, "UNKNOWN USER")
+				return
+			}
+
+			u := jwtUser{
+				ID:       user.ID,
+				FullName: user.FullName,
+			}
+
+			// Generate a token pair for this user
+			tokenPairs, err := app.auth.GenerateTokenPairs(&u)
+			if err != nil {
+				app.errorResponse(w, r, http.StatusUnauthorized, "Error generating tokens")
+				return
+			}
+
+			// Set the refresh token as cookie on the user browser
+			http.SetCookie(w, app.auth.GetRefreshCookie(tokenPairs.RefreshToken))
+
+			// WriteJSON  write out the out put to the developer
+			app.writeJSON(w, http.StatusAccepted, envelope{
+				"Tokens":tokenPairs,
+				"RefreshToken": tokenPairs.RefreshToken,
+			 }, nil)
+		}
+	}
 }

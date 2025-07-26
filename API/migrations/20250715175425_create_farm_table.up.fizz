@@ -1,5 +1,5 @@
 create_table("farms") {
-  t.Column("id", "uuid", {"primary": true})
+  t.Column("id", "integer", {"primary": true})
   t.Column("title", "string", {})
   t.Column("crop", "string", {})
   t.Column("location", "string", {})
